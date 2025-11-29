@@ -20,7 +20,7 @@ for d in [CSS_DIR, JS_DIR, IMG_DIR, FONTS_DIR]:
 def download_file(url, dest_folder, filename=None):
     if url.startswith("//"):
         url = "https:" + url
-    elif url.startswith("/"):
+    elif not url.startswith("http"):
         url = urljoin(BASE_URL, url)
     
     if not filename:

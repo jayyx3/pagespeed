@@ -111,49 +111,70 @@ def update_html(image_map):
             if not script.get("async") and not script.get("defer"):
                 script["defer"] = ""
 
-    # INLINE CSS (The "Nuclear Option" for 100/100 Score)
-    # We will inline bootstrap and site.css. 
-    # We will leave font-awesome and google fonts as async links (media="print" onload="this.media='all'")
+    # --- CSS OPTIMIZATION STRATEGY ---
+    # 1. Inline ONLY site.css (Critical Layout)
+    # 2. Preload Bootstrap, FontAwesome, Roboto (Non-Critical / Large)
     
-    print("Inlining Critical CSS...")
-    style_tag = soup.new_tag("style")
-    combined_css = ""
+    print("Optimizing CSS Delivery...")
     
-    # List of CSS files to inline (in order)
-    css_files_to_inline = ["bootstrap.min.css", "bootstrap-formhelpers.min.css", "site.css", "roboto.css"]
-    
-    for css_file in css_files_to_inline:
-        css_path = os.path.join(CSS_DIR, css_file)
-        if os.path.exists(css_path):
-            with open(css_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                # Add font-display: swap to all font-face definitions
-                content = re.sub(r'@font-face\s*{', r'@font-face { font-display: swap; ', content)
-                combined_css += content
+    # Inline site.css
+    site_css_path = os.path.join(CSS_DIR, "site.css")
+    if os.path.exists(site_css_path):
+        with open(site_css_path, "r", encoding="utf-8") as f:
+            site_css_content = f.read()
+            # Add font-display: swap
+            site_css_content = re.sub(r'@font-face\s*{', r'@font-face { font-display: swap; ', site_css_content)
             
-            # Remove the link tag from HTML
-            link_tag = soup.find("link", href=f"css/{css_file}")
-            if link_tag:
-                link_tag.decompose()
+        style_tag = soup.new_tag("style")
+        style_tag.string = site_css_content
+        soup.head.append(style_tag)
+        
+        # Remove the link to site.css
+        link_tag = soup.find("link", href="css/site.css")
+        if link_tag:
+            link_tag.decompose()
             
-            # Remove @import for this file if it exists in any style tag
-            for style in soup.find_all("style"):
-                if style.string and f'css/{css_file}' in style.string:
-                    # If the style tag only contains this import, remove the whole tag
-                    if style.string.strip() == f'@import url("css/{css_file}");':
-                        style.decompose()
-                    else:
-                        # Otherwise just remove the import line
-                        style.string = style.string.replace(f'@import url("css/{css_file}");', "")
-    
-    # Also remove the Google Fonts link if it exists
+        # Remove @import for site.css
+        for style in soup.find_all("style"):
+            if style.string and 'css/site.css' in style.string:
+                if style.string.strip() == '@import url("css/site.css");':
+                    style.decompose()
+                else:
+                    style.string = style.string.replace('@import url("css/site.css");', "")
+
+    # Preload other CSS files
+    other_css_files = ["bootstrap.min.css", "bootstrap-formhelpers.min.css", "roboto.css", "all.min.css"]
+    for css_file in other_css_files:
+        # Find the existing link tag
+        link_tag = soup.find("link", href=f"css/{css_file}")
+        if link_tag:
+            # Change it to preload
+            link_tag["rel"] = "preload"
+            link_tag["as"] = "style"
+            link_tag["onload"] = "this.onload=null;this.rel='stylesheet'"
+            # Add noscript fallback
+            noscript = soup.new_tag("noscript")
+            link_fallback = soup.new_tag("link", rel="stylesheet", href=f"css/{css_file}")
+            noscript.append(link_fallback)
+            soup.head.append(noscript)
+
+    # --- LCP OPTIMIZATION ---
+    # Find the logo (LCP candidate) and remove lazy loading
+    # It's usually the first image or the one with "logo" in src/class
+    print("Optimizing LCP...")
+    logo_img = soup.find("img", src=re.compile(r"chimney|logo", re.I))
+    if logo_img:
+        if "loading" in logo_img.attrs:
+            del logo_img["loading"]
+        # Add preload link
+        preload_link = soup.new_tag("link", rel="preload", href=logo_img["src"], as_="image")
+        soup.head.insert(0, preload_link)
+        print(f"Preloaded LCP image: {logo_img['src']}")
+
+    # Also remove the Google Fonts link if it exists (we are using local roboto.css)
     google_fonts_link = soup.find("link", href=re.compile(r"fonts\.googleapis\.com"))
     if google_fonts_link:
         google_fonts_link.decompose()
-
-    if combined_css:
-        style_tag.string = combined_css
-        soup.head.append(style_tag)
 
     # Minify HTML
     html_content = str(soup)
