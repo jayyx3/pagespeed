@@ -1,0 +1,1 @@
+FGJSRAND=0.081429549065153;FGJSRANDROUND=777565;FGmirror="//fgn.cdn.serverable.com/";FGdomain="https://cz.gamcore.com";FGGENDOM="https://gamcore.com";FGurl="/advertise";FGsmall="common/flashes/small/";FGgames="hry";FGis_mobile=0;GCTMSTMP=1764395941;var QCD_url='https://gamcore.com/fuckyou/324';

@@ -11,6 +11,31 @@ CSS_DIR = os.path.join(OUTPUT_DIR, "css")
 JS_DIR = os.path.join(OUTPUT_DIR, "js")
 IMG_DIR = os.path.join(OUTPUT_DIR, "images")
 
+# Critical CSS extracted from site.css to prevent CLS while keeping HTML size low
+CRITICAL_CSS = """
+body{background:#141414;font-family:'Roboto',sans-serif;font-size:14px;color:#fff}
+#wrapper{width:100%;float:left;overflow:hidden}
+.mycontainer{padding:0 15px;margin:0 auto;max-width:1140px;width:100%;position:relative}
+#headerCntr{padding:20px 20px 0 20px;width:100%;float:left;background:#2a2a2a}
+.logoArea{margin:5px 0 0 0;float:left}
+.logoArea a{display:block}
+.logoArea a img{width:195px}
+.headerRight{float:right}
+.menuArea{padding:20px 0 0 0;width:100%;float:left}
+.menuArea ul{list-style:none}
+.menuArea li{margin-right:35px;float:left}
+.menuArea li a{padding-bottom:14px;display:block;font-size:16px;color:#fff;font-weight:500;text-decoration:none;border-bottom:2px solid transparent}
+#middleCntr{width:100%;float:left}
+.middleBox{padding:50px 0;width:100%;float:left}
+.list_sideBar{width:100%;float:left}
+.midcontent{padding:0;width:100%;float:left}
+.d-none{display:none!important}
+.d-block{display:block!important}
+@media(min-width:768px){.d-md-block{display:block!important}.d-md-none{display:none!important}}
+@media(min-width:992px){.d-lg-block{display:block!important}}
+@media(min-width:1200px){.d-xl-block{display:block!important}}
+"""
+
 def optimize_images():
     print("Optimizing images...")
     image_map = {}
@@ -27,9 +52,6 @@ def optimize_images():
                 
                 image_map[filename] = webp_filename
                 print(f"Converted {filename} to {webp_filename}")
-                
-                # Remove original file to save space/confusion, or keep it? 
-                # Let's keep it for now but the HTML will point to webp
             except Exception as e:
                 print(f"Failed to convert {filename}: {e}")
     return image_map
@@ -112,66 +134,92 @@ def update_html(image_map):
                 script["defer"] = ""
 
     # --- CSS OPTIMIZATION STRATEGY ---
-    # 1. Inline site.css (Critical Layout) AND bootstrap-grid.min.css (Layout Structure)
-    # 2. Preload Bootstrap (Full), FontAwesome, Roboto (Non-Critical / Large)
+    # 1. Inline bootstrap-grid.min.css (Layout Structure)
+    # 2. Inline Critical CSS (Header/Layout)
+    # 3. Preload site.css and others
     
     print("Optimizing CSS Delivery...")
     
     # Inline bootstrap-grid.min.css FIRST (to establish layout)
-    grid_css_path = os.path.join(CSS_DIR, "bootstrap-grid.min.css")
-    if os.path.exists(grid_css_path):
-        with open(grid_css_path, "r", encoding="utf-8") as f:
-            grid_css_content = f.read()
-        
-        grid_style_tag = soup.new_tag("style")
-        grid_style_tag.string = grid_css_content
-        soup.head.insert(0, grid_style_tag) # Insert at the very top of head
-        print("Inlined bootstrap-grid.min.css")
-
-    # Inline site.css
-    site_css_path = os.path.join(CSS_DIR, "site.css")
-    if os.path.exists(site_css_path):
-        with open(site_css_path, "r", encoding="utf-8") as f:
-            site_css_content = f.read()
-            # Add font-display: swap
-            site_css_content = re.sub(r'@font-face\s*{', r'@font-face { font-display: swap; ', site_css_content)
+    # Check if already inlined to avoid duplicates
+    grid_already_inlined = False
+    for style in soup.find_all("style"):
+        if style.string and "Bootstrap Grid" in style.string:
+            grid_already_inlined = True
+            break
             
-        style_tag = soup.new_tag("style")
-        style_tag.string = site_css_content
-        soup.head.append(style_tag)
-        
-        # Remove the link to site.css
-        link_tag = soup.find("link", href="css/site.css")
+    if not grid_already_inlined:
+        grid_css_path = os.path.join(CSS_DIR, "bootstrap-grid.min.css")
+        if os.path.exists(grid_css_path):
+            with open(grid_css_path, "r", encoding="utf-8") as f:
+                grid_css_content = f.read()
+            
+            grid_style_tag = soup.new_tag("style")
+            grid_style_tag.string = grid_css_content
+            soup.head.insert(0, grid_style_tag) # Insert at the very top of head
+            print("Inlined bootstrap-grid.min.css")
+    else:
+        print("Bootstrap Grid already inlined, skipping.")
+
+    # Inline Critical CSS
+    # Check if already inlined
+    critical_already_inlined = False
+    for style in soup.find_all("style"):
+        if style.string and "#headerCntr" in style.string and "Bootstrap Grid" not in style.string:
+            critical_already_inlined = True
+            break
+            
+    if not critical_already_inlined:
+        critical_style_tag = soup.new_tag("style")
+        critical_style_tag.string = compress(CRITICAL_CSS)
+        soup.head.append(critical_style_tag)
+        print("Inlined Critical CSS")
+    else:
+        print("Critical CSS already inlined, skipping.")
+
+    # Preload site.css and others
+    # Ensure site.css is linked (if it was removed in previous runs, we need to add it back)
+    # But since we are running on the source file (or a copy), we assume the link might be there or we add it.
+    # The previous script removed it. Let's check if it exists, if not add it.
+    
+    css_files_to_preload = ["site.css", "bootstrap.min.css", "bootstrap-formhelpers.min.css", "roboto.css", "all.min.css"]
+    
+    # First, remove existing links to these files to avoid duplicates/conflicts
+    for css_file in css_files_to_preload:
+        link_tag = soup.find("link", href=f"css/{css_file}")
         if link_tag:
             link_tag.decompose()
             
-        # Remove @import for site.css
-        for style in soup.find_all("style"):
-            if style.string and 'css/site.css' in style.string:
-                if style.string.strip() == '@import url("css/site.css");':
-                    style.decompose()
-                else:
-                    style.string = style.string.replace('@import url("css/site.css");', "")
+    # Now add them back as preload
+    for css_file in css_files_to_preload:
+        link_tag = soup.new_tag("link", rel="preload", href=f"css/{css_file}", as_="style")
+        link_tag["onload"] = "this.onload=null;this.rel='stylesheet'"
+        soup.head.append(link_tag)
+        
+        # Add noscript fallback
+        noscript = soup.new_tag("noscript")
+        link_fallback = soup.new_tag("link", rel="stylesheet", href=f"css/{css_file}")
+        noscript.append(link_fallback)
+        soup.head.append(noscript)
 
-    # Preload other CSS files
-    other_css_files = ["bootstrap.min.css", "bootstrap-formhelpers.min.css", "roboto.css", "all.min.css"]
-    for css_file in other_css_files:
-        # Find the existing link tag
-        link_tag = soup.find("link", href=f"css/{css_file}")
-        if link_tag:
-            # Change it to preload
-            link_tag["rel"] = "preload"
-            link_tag["as"] = "style"
-            link_tag["onload"] = "this.onload=null;this.rel='stylesheet'"
-            # Add noscript fallback
-            noscript = soup.new_tag("noscript")
-            link_fallback = soup.new_tag("link", rel="stylesheet", href=f"css/{css_file}")
-            noscript.append(link_fallback)
-            soup.head.append(noscript)
+    # Remove @import for site.css if it exists in any style tag
+    for style in soup.find_all("style"):
+        if style.string and 'css/site.css' in style.string:
+            if style.string.strip() == '@import url("css/site.css");':
+                style.decompose()
+            else:
+                style.string = style.string.replace('@import url("css/site.css");', "")
+
+    # --- JS OPTIMIZATION ---
+    # Replace the inline script block with deferred js/config.js
+    # Look for the script containing FGJSRAND
+    for script in soup.find_all("script"):
+        if script.string and "FGJSRAND=" in script.string:
+            print("Found inline config script. Replacing with deferred js/config.js")
+            new_script = soup.new_tag("script", src="js/config.js", defer="")
+            script.replace_with(new_script)
 
     # --- LCP OPTIMIZATION ---
-    # Find the logo (LCP candidate) and remove lazy loading
-    # It's usually the first image or the one with "logo" in src/class
     print("Optimizing LCP...")
     logo_img = soup.find("img", src=re.compile(r"chimney|logo", re.I))
     if logo_img:
@@ -199,6 +247,10 @@ def update_html(image_map):
     print("HTML updated and minified.")
 
 if __name__ == "__main__":
+    # We assume images are already optimized or we run it again
+    # image_map = optimize_images() 
+    # For speed in this iteration, let's just get the map without re-converting if possible
+    # But optimize_images is fast if files exist.
     image_map = optimize_images()
     minify_css()
     minify_js()
