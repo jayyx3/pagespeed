@@ -112,11 +112,22 @@ def update_html(image_map):
                 script["defer"] = ""
 
     # --- CSS OPTIMIZATION STRATEGY ---
-    # 1. Inline ONLY site.css (Critical Layout)
-    # 2. Preload Bootstrap, FontAwesome, Roboto (Non-Critical / Large)
+    # 1. Inline site.css (Critical Layout) AND bootstrap-grid.min.css (Layout Structure)
+    # 2. Preload Bootstrap (Full), FontAwesome, Roboto (Non-Critical / Large)
     
     print("Optimizing CSS Delivery...")
     
+    # Inline bootstrap-grid.min.css FIRST (to establish layout)
+    grid_css_path = os.path.join(CSS_DIR, "bootstrap-grid.min.css")
+    if os.path.exists(grid_css_path):
+        with open(grid_css_path, "r", encoding="utf-8") as f:
+            grid_css_content = f.read()
+        
+        grid_style_tag = soup.new_tag("style")
+        grid_style_tag.string = grid_css_content
+        soup.head.insert(0, grid_style_tag) # Insert at the very top of head
+        print("Inlined bootstrap-grid.min.css")
+
     # Inline site.css
     site_css_path = os.path.join(CSS_DIR, "site.css")
     if os.path.exists(site_css_path):

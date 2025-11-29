@@ -128,4 +128,7 @@ def process_html():
         f.write(str(soup))
 
 if __name__ == "__main__":
+    # Download Bootstrap Grid (for inlining to fix CLS)
+    download_file("https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap-grid.min.css", CSS_DIR, "bootstrap-grid.min.css")
+
     process_html()
