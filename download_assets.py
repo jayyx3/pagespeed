@@ -8,7 +8,7 @@ import re
 BASE_URL = "https://cz.gamcore.com/advertise"
 
 # Output directory
-OUTPUT_DIR = "optimized_site"
+OUTPUT_DIR = "."
 CSS_DIR = os.path.join(OUTPUT_DIR, "css")
 JS_DIR = os.path.join(OUTPUT_DIR, "js")
 IMG_DIR = os.path.join(OUTPUT_DIR, "images")

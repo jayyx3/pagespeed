@@ -3,7 +3,7 @@ import requests
 import re
 from urllib.parse import urljoin
 
-OUTPUT_DIR = "optimized_site"
+OUTPUT_DIR = "."
 WEBFONTS_DIR = os.path.join(OUTPUT_DIR, "webfonts")
 CSS_DIR = os.path.join(OUTPUT_DIR, "css")
 FONTS_DIR = os.path.join(OUTPUT_DIR, "fonts")

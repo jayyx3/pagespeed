@@ -6,7 +6,7 @@ from jsmin import jsmin
 from bs4 import BeautifulSoup
 import re
 
-OUTPUT_DIR = "optimized_site"
+OUTPUT_DIR = "."
 CSS_DIR = os.path.join(OUTPUT_DIR, "css")
 JS_DIR = os.path.join(OUTPUT_DIR, "js")
 IMG_DIR = os.path.join(OUTPUT_DIR, "images")
@@ -104,9 +104,6 @@ def update_html(image_map):
             if filename in image_map:
                 link_image["href"] = f"images/{image_map[filename]}"
 
-    # Ensure all CSS is loaded
-    # (Already handled by download_assets.py, but we can add preload for critical CSS if we knew which one)
-    
     # Ensure all JS is deferred or async
     for script in soup.find_all("script"):
         if script.get("src"):
